@@ -18,7 +18,7 @@ function s:ShellSafe(str)
     return substitute(a:str, "'", "'\\\\''" ,"g")
 endfunction
 
-function s:SendOp(type, ...)
+function s:OpSend(type, ...)
     let sel_save = &selection
     let &selection = "inclusive"
     let reg_save = @@
@@ -149,19 +149,23 @@ noremap <unique> <script> <Plug>ScreenPipeSend <SID>Send
 " Then map <SID>Send to a call to our s:Send Method
 noremap <SID>Send :call <SID>Send()<CR>
 
-"if !hasmapto('<Plug>ScreenPipeSendOp')
-"    if exists('mapleader') == 1
-"        map <unique> <Leader><bar> <Plug>ScreenPipeSendOp
-"    else
-"        map <unique> <bar> <Plug>ScreenPipeSendOp
-"    endif
-"endif
-"
-"" Then map <Plug>ScreenPipeSendOp to our private script action <SID>SendOp
-"noremap <unique> <script> <Plug>ScreenPipeSendOp <SID>SendOp
-"
-"" Then map <SID>SendOp to use our s:SendOp opfunc
-"nmap <silent> <Leader>+ :set opfunc=<SID>SendOp<CR>g@
+if !hasmapto('<Plug>ScreenPipeOpSend')
+    if exists('mapleader') == 1
+        map <unique> <Leader><bar> <Plug>ScreenPipeOpSend
+    else
+        map <unique> <bar> <Plug>ScreenPipeOpSend
+    endif
+endif
+
+" Then map <Plug>ScreenPipeOpSend to our private script action <SID>OpSend
+noremap <unique> <script> <Plug>ScreenPipeOpSend <SID>OpSend
+
+" Then map <SID>OpSend to use our s:OpSend opfunc
+vnoremap <SID>OpSend :<C-U>call <SID>OpSend(visualmode(), 1)<CR>
+
+" TODO: This operator map causes a bunch of "Press Enter or type command..." messages.
+" Need to figure out how to fix it.
+"nmap <silent> <Leader>+ :set opfunc=<SID>OpSend<CR>g@
 
 " Add the :ScreenPipe user command if there's no conflict
 if !exists(":ScreenPipe")
