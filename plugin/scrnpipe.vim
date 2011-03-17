@@ -13,11 +13,70 @@ if exists("loaded_srcnpipe")
 endif
 let loaded_srcnpipe = 1
 
-function! s:Send () range
+function s:ShellSafe(str)
+    " Do some crazy escaping to make sure everything is shell-safe
+    return substitute(a:str, "'", "'\\\\''" ,"g")
+endfunction
+
+function s:SendOp(type, ...)
+    let sel_save = &selection
+    let &selection = "inclusive"
+    let reg_save = @@
+
+    let opts = s:GetScreenOpts() 
+    if empty(opts)
+        return
+    endif
+
+    if a:0  " Invoked from Visual mode, use '< and '> marks.
+        silent exe "normal! `<" . a:type . "`>y"
+    elseif a:type == 'line'
+        silent exe "normal! '[V']y"
+    elseif a:type == 'block'
+        silent exe "normal! `[\<C-V>`]y"
+    else
+        silent exe "normal! `[v`]y"
+    endif
+
+    " Stuff this escaped stuff to the chosen screen window
+    echo system("screen -x " .opts["screen"]. " -p " .opts["window"]. " -X stuff '" . s:ShellSafe(@@) ."'" )
+
+    echo 'Sent to screen: "' . s:screen_session_choice . '" window: "' . s:screen_window_choice .'"'
+
+    let &selection = sel_save
+    let @@ = reg_save
+endfunction
+
+function s:Send () range
+
+    let opts = s:GetScreenOpts() 
+    if empty(opts)
+        return
+    endif
+
+    " Send every line in the range to the chosen screen
+    let lnum = a:firstline
+    while lnum <= a:lastline
+        let line = getline(lnum)
+        " Stuff this escaped stuff to the chosen screen window
+        echo system("screen -x " .opts["screen"]. " -p " .opts["window"]. " -X stuff '" . s:ShellSafe(line) ."'" )
+        let lnum = lnum + 1
+    endwhile
+
+    echo 'Sent to screen: "' . s:screen_session_choice . '" window: "' . s:screen_window_choice .'"'
+
+endfunction
+
+function s:GetScreenOpts ()
     " Get a List of open screens
     let screens_cmd = 'screen -ls | perl -ne "print \$1 if / \d+\. ( [^\s]+ )+ /x"'
     let screens_str = system( screens_cmd )
     let screens = split(screens_str,'\n')
+
+    if len(screens) == 0
+        echo "I don't see any running screen sessions!"
+        return {}
+    endif
 
     if !(exists("s:screen_session_choice") && exists("s:screen_window_choice") && input("Use previous settings? ", 'y') == 'y')
         " Build a formatted list of options
@@ -34,7 +93,7 @@ function! s:Send () range
 
         " A choice of 0 means quit
         if choice == 0
-            return
+            return {}
         endif
 
         " Get a tmp file to dump the window list to
@@ -53,29 +112,20 @@ function! s:Send () range
         let windows = system("awk '/^\ +[0-9]+\ / {print $1 ,\" \", $2}' " . listfile)
 
         " Ask the user to pick one of the windows
-        echo "Found the following windows:"
+        echo "Found the following windows:" 
         echo windows
         let window = input("Choose a window number (<Enter> cancels): ")
 
         " Return if not a number
         if match(window, '^\d\+$') < 0
-            return
+            return {}
         endif
 
         let s:screen_session_choice = screen
         let s:screen_window_choice  = window
     endif
 
-    " Send every line in the range to the chosen screen
-    let lnum = a:firstline
-    while lnum <= a:lastline
-        let line = shellescape( getline(lnum) )
-        echo system("screen -x " . s:screen_session_choice . " -p " .s:screen_window_choice. " -X stuff " .line. "")
-        let lnum = lnum + 1
-    endwhile
-
-    echo 'Sent to screen: "' . s:screen_session_choice . '" window: "' . s:screen_window_choice .'"'
-
+    return {'screen': s:screen_session_choice, 'window': s:screen_window_choice}
 endfunction
 
 " MAPPINGS ------------
@@ -88,15 +138,30 @@ endfunction
 " target which is available to the user to map whatever they want to.
 if !hasmapto('<Plug>ScreenPipeSend')
     if exists('mapleader') == 1
-        map <unique> <Leader><bar> <Plug>ScreenPipeSend
+        map <unique> <Leader><bar><bar> <Plug>ScreenPipeSend
     else
-        map <unique> <bar> <Plug>ScreenPipeSend
+        map <unique> <bar><bar> <Plug>ScreenPipeSend
     endif
 endif
+
 " Then map <Plug>ScreenPipeSend to our private script action <SID>Send
 noremap <unique> <script> <Plug>ScreenPipeSend <SID>Send
 " Then map <SID>Send to a call to our s:Send Method
 noremap <SID>Send :call <SID>Send()<CR>
+
+"if !hasmapto('<Plug>ScreenPipeSendOp')
+"    if exists('mapleader') == 1
+"        map <unique> <Leader><bar> <Plug>ScreenPipeSendOp
+"    else
+"        map <unique> <bar> <Plug>ScreenPipeSendOp
+"    endif
+"endif
+"
+"" Then map <Plug>ScreenPipeSendOp to our private script action <SID>SendOp
+"noremap <unique> <script> <Plug>ScreenPipeSendOp <SID>SendOp
+"
+"" Then map <SID>SendOp to use our s:SendOp opfunc
+"nmap <silent> <Leader>+ :set opfunc=<SID>SendOp<CR>g@
 
 " Add the :ScreenPipe user command if there's no conflict
 if !exists(":ScreenPipe")
