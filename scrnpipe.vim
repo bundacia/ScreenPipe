@@ -87,7 +87,11 @@ endfunction
 " So first we add mapping for | to the special "<Plug>ScreenPipeSend" 
 " target which is available to the user to map whatever they want to.
 if !hasmapto('<Plug>ScreenPipeSend')
-    map <unique> <Leader><bar> <Plug>ScreenPipeSend
+    if exists('mapleader') == 1
+        map <unique> <Leader><bar> <Plug>ScreenPipeSend
+    else
+        map <unique> <bar> <Plug>ScreenPipeSend
+    endif
 endif
 " Then map <Plug>ScreenPipeSend to our private script action <SID>Send
 noremap <unique> <script> <Plug>ScreenPipeSend <SID>Send
